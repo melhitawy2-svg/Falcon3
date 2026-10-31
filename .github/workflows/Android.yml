@@ -6,8 +6,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -15,35 +17,26 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Find Android Project Root
+      - name: Find Android Project Root - FIXED
         id: find_root
         run: |
-          # هيدور على ملف settings.gradle فين
-          ROOT=$(find . -name "settings.gradle*" | head -n 1 | xargs dirname)
+          echo "=== البحث عن مشروع الأندرويد ==="
+          find . -type f -name "settings.gradle*" -o -name "build.gradle*" | head -n 20
+          
+          ROOT=$(find . -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1 | xargs dirname)
+          
           if [ -z "$ROOT" ]; then
-            ROOT=$(find . -name "build.gradle*" | head -n 1 | xargs dirname | xargs dirname)
+            echo "::error::لم يتم العثور على settings.gradle في الريبو كله!"
+            echo "محتويات الريبو:"
+            ls -la
+            echo "---"
+            ls -R | head -n 100
+            exit 1
           fi
-          if [ -z "$ROOT" ]; then
-            ROOT="."
-          fi
+          
           echo "PROJECT_ROOT=$ROOT" >> $GITHUB_ENV
-          echo "لقيت المشروع في: $ROOT"
+          echo "✅ تم العثور على المشروع في: $ROOT"
           ls -la $ROOT
-          ls -la $ROOT/app || true
 
-      - name: Setup Gradle 8.7
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: 8.7
-
-      - name: Build Debug APK
-        working-directory: ${{ env.PROJECT_ROOT }}
-        run: gradle assembleDebug --stacktrace
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Falcon-VPN-APK
-          path: |
-            ${{ env.PROJECT_ROOT }}/app/build/outputs/apk/debug/*.apk
-            **/app/build/outputs/apk/debug/*.apk
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v
