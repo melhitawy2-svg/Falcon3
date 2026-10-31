@@ -17,18 +17,36 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Extract Android project from ZIP
+        run: |
+          echo "=== محتويات الريبو قبل الفك ==="
+          ls -la
+          echo ""
+          echo "=== فك الضغط ==="
+          # هيفك أي zip موجود في الروت
+          for zip in *.zip; do
+            if [ -f "$zip" ]; then
+              echo "بفك: $zip"
+              unzip -q "$zip" -d ./project
+            fi
+          done
+          echo ""
+          echo "=== محتويات بعد الفك ==="
+          ls -la ./project
+          find ./project -maxdepth 3 -type f -name "*.gradle*" | head -n 20
+
       - name: Find Android Project Root
         id: find_root
         run: |
-          ROOT=$(find . -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -n 1 | xargs dirname)
+          ROOT=$(find ./project -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -n 1 | xargs dirname)
           if [ -z "$ROOT" ]; then
-            echo "::error::No Android project found - تأكد أن settings.gradle موجود في الـ ZIP"
-            ls -la
-            find . -maxdepth 3 -type f | head -n 50
+            echo "::error::No Android project found even after extracting ZIP"
+            find ./project -type f | head -n 50
             exit 1
           fi
           echo "PROJECT_ROOT=$ROOT" >> $GITHUB_ENV
           echo "✅ Project found in: $ROOT"
+          ls -la $ROOT
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
@@ -40,7 +58,6 @@ jobs:
         working-directory: ${{ env.PROJECT_ROOT }}
         run: |
           echo "Building in: $(pwd)"
-          ls -la
           if [ -f "./gradlew" ]; then
             chmod +x ./gradlew
             ./gradlew assembleDebug --stacktrace
