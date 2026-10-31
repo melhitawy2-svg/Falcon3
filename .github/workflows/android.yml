@@ -1,4 +1,4 @@
-name: Falcon VPN Build
+name: Falcon VPN Android Build
 
 on:
   workflow_dispatch:
@@ -17,22 +17,31 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Find Android Project Root
+      - name: Unzip Android Project
         run: |
-          echo "=== البحث عن المشروع ==="
-          find . -name "settings.gradle.kts" -o -name "settings.gradle" | head -n 10
-          ROOT=$(find . -type f -name "settings.gradle.kts" | head -n 1 | xargs dirname)
-          if [ -z "$ROOT" ]; then
-            ROOT=$(find . -type f -name "settings.gradle" | head -n 1 | xargs dirname)
+          echo "=== فك ضغط المشروع ==="
+          ls -la
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "::error:: مفيش ملف zip في الجذر"
+            exit 1
           fi
+          echo "هفك: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d extracted
+          echo "=== بعد الفك ==="
+          ls -R extracted | head -n 150
+
+      - name: Find Project Root
+        run: |
+          ROOT=$(find extracted -name "settings.gradle.kts" -o -name "settings.gradle" | head -n 1 | xargs dirname)
           if [ -z "$ROOT" ]; then
-            echo "مش لاقي settings.gradle"
-            ls -R | head -n 100
+            echo "::error:: مش لاقي settings.gradle جوه الzip"
             exit 1
           fi
           echo "PROJECT_ROOT=$ROOT" >> $GITHUB_ENV
           echo "لقيت المشروع في: $ROOT"
           ls -la $ROOT
+          ls -la $ROOT/app 2>/dev/null || true
 
       - name: Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v3
@@ -41,12 +50,19 @@ jobs:
 
       - name: Build Debug APK
         working-directory: ${{ env.PROJECT_ROOT }}
-        run: gradle assembleDebug --stacktrace
+        run: |
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --stacktrace
+          else
+            echo "gradlew مش موجود، هنبني بـ gradle مباشر"
+            gradle assembleDebug --stacktrace
+          fi
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Falcon-VPN-APK
           path: ${{ env.PROJECT_ROOT }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 10
