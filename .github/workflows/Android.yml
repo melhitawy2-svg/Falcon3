@@ -14,12 +14,20 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Extract Falcon VPN Project
+        run: |
+          if [ -f FalconVPN-Starter.zip ]; then
+            unzip -o FalconVPN-Starter.zip -d extracted
+          else
+            echo "ERROR: FalconVPN-Starter.zip not found!"
+            exit 1
+          fi
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
@@ -29,31 +37,29 @@ jobs:
             platforms;android-35
             build-tools;35.0.0
 
-      - name: Extract Falcon VPN Project
+      - name: Locate Gradle Project
         run: |
-          if [ -f FalconVPN-Starter.zip ]; then
-            unzip -o FalconVPN-Starter.zip -d .
+          GRADLE_FILE=$(find extracted -type f -name gradlew | head -n 1)
+
+          if [ -z "$GRADLE_FILE" ]; then
+            echo "ERROR: gradlew not found in ZIP!"
+            exit 1
           fi
 
-      - name: Make Gradle Executable
-        run: |
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-          fi
+          PROJECT_DIR=$(dirname "$GRADLE_FILE")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
+          chmod +x "$GRADLE_FILE"
 
       - name: Build APK
         run: |
-          if [ -f gradlew ]; then
-            ./gradlew assembleDebug --stacktrace
-          else
-            echo "ERROR: gradlew not found!"
-            exit 1
-          fi
+          cd "$PROJECT_DIR"
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Falcon-VPN-APK
           path: |
-            **/build/outputs/apk/debug/*.apk
+            extracted/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
